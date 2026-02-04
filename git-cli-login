@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROFILE_FILE="${GIT_LOGIN_PROFILE_FILE:-.profile}"
+CONFIG_DIR="${GIT_LOGIN_CONFIG_DIR:-$HOME/.git-login}"
+
+print_usage() {
+  cat <<EOF
+Usage:
+  git-cli-login <profile>
+  git-cli-login --local <profile>
+  git-cli-login --help
+
+Profiles are defined as plain shell files in:
+  \$CONFIG_DIR/<profile>
+  (default: $CONFIG_DIR)
+
+Each profile file should set at least:
+  GIT_LOGIN_NAME="Your Name"
+  GIT_LOGIN_EMAIL="your-email@example.com"
+
+You can also define multiple profiles in a single .profile file
+in this repo, for example:
+
+  GIT_LOGIN_NAME_personal="Your Personal Name"
+  GIT_LOGIN_EMAIL_personal="your-personal-email@example.com"
+
+  GIT_LOGIN_NAME_work="Your Work Name"
+  GIT_LOGIN_EMAIL_work="your-work-email@example.com"
+
+Then run:
+
+  git-cli-login personal          # set global git identity
+  git-cli-login --local work      # set identity only for current repo
+EOF
+}
+
+die() {
+  echo "git-cli-login: $*" >&2
+  exit 1
+}
+
+scope="--global"
+profile=""
+
+if [[ $# -eq 0 ]]; then
+  print_usage
+  exit 1
+fi
+
+case "${1:-}" in
+  -h|--help)
+    print_usage
+    exit 0
+    ;;
+  --local)
+    scope="--local"
+    shift
+    ;;
+esac
+
+if [[ $# -lt 1 ]]; then
+  die "missing profile name. Run 'git-cli-login --help' for usage."
+fi
+
+profile="$1"
+GIT_LOGIN_NAME=""
+GIT_LOGIN_EMAIL=""
+
+if [[ -f "$PROFILE_FILE" ]]; then
+  # Prefer a single .profile file in the repo root if present
+  # shellcheck source=/dev/null
+  source "$PROFILE_FILE"
+
+  name_var="GIT_LOGIN_NAME_${profile}"
+  email_var="GIT_LOGIN_EMAIL_${profile}"
+
+  GIT_LOGIN_NAME="${!name_var-}"
+  GIT_LOGIN_EMAIL="${!email_var-}"
+else
+  # Fallback to per-profile files under ~/.git-login/<profile>
+  profile_file="$CONFIG_DIR/$profile"
+
+  if [[ ! -f "$profile_file" ]]; then
+    die "profile '$profile' not found.
+Either create a .profile file in this repo with entries like:
+
+  GIT_LOGIN_NAME_personal=\"Your Name\"
+  GIT_LOGIN_EMAIL_personal=\"your-personal-email@example.com\"
+
+or create a per-profile file at:
+
+  \"$profile_file\"
+
+that sets:
+
+  GIT_LOGIN_NAME=\"Your Name\"
+  GIT_LOGIN_EMAIL=\"your-email@example.com\""
+  fi
+
+  # shellcheck source=/dev/null
+  source "$profile_file"
+fi
+
+if [[ -z "${GIT_LOGIN_NAME:-}" ]]; then
+  die "No name configured for profile '$profile'"
+fi
+
+if [[ -z "${GIT_LOGIN_EMAIL:-}" ]]; then
+  die "No email configured for profile '$profile'"
+fi
+
+git config "$scope" user.name "$GIT_LOGIN_NAME"
+git config "$scope" user.email "$GIT_LOGIN_EMAIL"
+
+echo "git-cli-login: set git $scope user:"
+echo "  user.name  = $GIT_LOGIN_NAME"
+echo "  user.email = $GIT_LOGIN_EMAIL"
+

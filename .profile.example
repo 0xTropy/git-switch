@@ -1,0 +1,11 @@
+# Example configuration for git-login profiles.
+# Copy this file to ".profile" (which is gitignored) and edit values.
+
+# Personal profile
+GIT_LOGIN_NAME_personal="Bob Personal"
+GIT_LOGIN_EMAIL_personal="your-personal-email@example.com"
+
+# Work profile
+GIT_LOGIN_NAME_work="Bob Work"
+GIT_LOGIN_EMAIL_work="your-work-email@example.com"
+
